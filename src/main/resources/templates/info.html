@@ -1,0 +1,13 @@
+<html xmlns:th="https://thymeleaf.org">
+<body>
+<h1>终端程序 显示header信息</h1>
+<table>
+    <tbody>
+    <tr th:each="header: ${headers}">
+        <td th:text="${header.key}"/>
+        <td th:text="${header.value}"/>
+    </tr>
+    </tbody>
+</table>
+</html>
+</body>
