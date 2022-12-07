@@ -51,7 +51,10 @@ curl -X GET -H 'customer-header:hey'  https://d1kbsjp3qzgmcr.cloudfront.net/head
 ![insidecf](images/insidecf.png)
 
 #### Outside CF
-> CF (outside)直接访问 不成功。
+
+> 为了实现WAF规则对比， 外层CF需要能够将请求所有的header, cookie, querystring全部透出传去后端CF。
+
+>> 而一旦透传Header **Host**到内层CF, CF (outside)无法访问成功。
 ```html
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML><HEAD><META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
@@ -74,14 +77,15 @@ Request ID: LHVTSrrUTmZlNJr9yyB8ymoxrPPbsfyFGsTR6ma40cVZgD87Pivdgg==
 </ADDRESS>
 </BODY></HTML
 ```
-CloudFront distribution 的限制，不允许以一个不对应的Host请求CF
+> CloudFront distribution 的限制，不允许以一个不对应的Host请求CF
 
 ## 解决方案
 
 通过Lambda@Edge, 在Origin Request阶段修改Host的值为CF(inside)的域名，实现访问；
 
 > 注意 一个字都不要错！ 特别是HOST的值， 搞个两个小时, 只因为Host的值给错了!!!
-```javascript
+
+```js
 
 'use strict';
 
@@ -90,12 +94,12 @@ exports.handler = (event, context, callback) => {
    
     const headers = request.headers;
     console.log("BBB The request header is " + JSON.stringify(headers));
-    //headers['X-love-this'] = 'TestCustomizationHeader';
-    request.headers['host'] = [{ key: 'Host', value: 'd1kbsjp3qzgmcr.cloudfront.net'}];
+    delete request.headers['host'];
     console.log("AAA The request header is " + JSON.stringify(headers));
     callback(null, request);
 };
 ```
+
 > 该函数作用在Origin Request阶段
 
 ![outsidecf](images/outsidecf.png)
