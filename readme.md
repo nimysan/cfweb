@@ -1,8 +1,12 @@
 # CF套CF实现WAF规则比对
 
+![arc](images/arc.png)
+
 ## 系统说明
 
 EC2-NLB-CF(inside)-CF(outside - 在此配置业务域名并使用)
+
+![cf](images/2cf.png)
 
 ### EC2服务部署
 
@@ -44,6 +48,7 @@ curl -X GET -H 'customer-header:hey'  https://d1kbsjp3qzgmcr.cloudfront.net/head
   }
 }
 ```
+![insidecf](images/insidecf.png)
 
 #### Outside CF
 > CF (outside)直接访问 不成功。
@@ -91,6 +96,10 @@ exports.handler = (event, context, callback) => {
     callback(null, request);
 };
 ```
+> 该函数作用在Origin Request阶段
+
+![outsidecf](images/outsidecf.png)
+
 
 配置成功后，
 ```bash
