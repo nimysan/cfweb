@@ -4,16 +4,49 @@
 
 EC2-NLB-CF(inside)-CF(outside - 在此配置业务域名并使用)
 
-### 每一层系统的访问
+### EC2服务部署
+
+#### 采用httpbin
 
 ```bash
-#NLB直接访问 - OK
-curl -X GET -H 'a-from-user-defined:b' http://testnlb-317e15c5ac054f49.elb.us-east-1.amazonaws.com/info-json ｜ jq .
-#CF（inside) 直接访问 OK
-curl -X GET -H 'customer-header:hey'  https://d1kbsjp3qzgmcr.cloudfront.net/info-json | jq .
+docker run -d -p 80:80 kennethreitz/httpbin
 ```
-> CF (outside)直接访问 不成功。
 
+
+### 每一层系统的访问
+
+#### NLB
+```bash
+#NLB直接访问 - OK
+curl -X GET -H 'customer-header:hey' http://testnlb-317e15c5ac054f49.elb.us-east-1.amazonaws.com/headers 
+{
+  "headers": {
+    "Accept": "*/*",
+    "Customer-Header": "hey",
+    "Host": "testnlb-317e15c5ac054f49.elb.us-east-1.amazonaws.com",
+    "User-Agent": "curl/7.79.1"
+  }
+}
+
+```
+#### Inside CF
+```bash
+#CF（inside) 直接访问 OK
+curl -X GET -H 'customer-header:hey'  https://d1kbsjp3qzgmcr.cloudfront.net/headers 
+{
+  "headers": {
+    "Accept": "*/*",
+    "Connection": "Keep-Alive",
+    "Customer-Header": "hey",
+    "Host": "d1kbsjp3qzgmcr.cloudfront.net",
+    "User-Agent": "curl/7.79.1",
+    "X-Amz-Cf-Id": "TlJsvKymXEfFwrzthtTu6cYBn_Zp2-tXlvaOfZ-TabcK00CPHvnJHw=="
+  }
+}
+```
+
+#### Outside CF
+> CF (outside)直接访问 不成功。
 ```html
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML><HEAD><META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
@@ -61,55 +94,31 @@ exports.handler = (event, context, callback) => {
 
 配置成功后，
 ```bash
-[ec2-user@ip-172-31-23-252 ~]$ curl -X GET -H "a:b" https://outside.cuteworld.top/info-json | jq .
-
-[
-  {
-    "key": "host",
-    "value": "d1kbsjp3qzgmcr.cloudfront.net"
-  },
-  {
-    "key": "user-agent",
-    "value": "curl/7.79.1"
-  },
-  {
-    "key": "x-amz-cf-id",
-    "value": "Pf1-Fzx2ym7rwm5TG8JbY79ZZO6pdUi79JZSY0YZZ-8gB-fvVBSruA=="
-  },
-  {
-    "key": "connection",
-    "value": "Keep-Alive"
-  },
-  {
-    "key": "via",
-    "value": "1.1 433a9c05d193bde5ebbc16090572d32c.cloudfront.net (CloudFront), 1.1 853942afcee145910ece677317fb7b3c.cloudfront.net (CloudFront)"
-  },
-  {
-    "key": "x-forwarded-for",
-    "value": "34.207.59.225, 64.252.69.23"
-  },
-  {
-    "key": "accept",
-    "value": "*/*"
-  },
-  {
-    "key": "a",
-    "value": "b"
+[ec2-user@ip-172-31-23-252 ~]$ curl -X GET -H 'customer-header:hey' https://outside.cuteworld.top/headers
+{
+  "headers": {
+    "Accept": "*/*",
+    "Connection": "Keep-Alive",
+    "Customer-Header": "hey",
+    "Host": "d1kbsjp3qzgmcr.cloudfront.net",
+    "User-Agent": "curl/7.79.1",
+    "X-Amz-Cf-Id": "aJu_IktJK-o5sMjTCpCo7A8Ecl1-oMhV_alKoLZOlw5ZTB1Vr-1dLQ=="
   }
-]
+}
 ```
 
-
-## 尝试通过 CloudFront Function修改Host
+## 几个需要注意的问题
+ 
+1. 尝试通过 CloudFront Function修改Host
 
 > The CloudFront function tried to add, delete, or change a read-only header
 
 在Viewer request阶段 Host是read-only的， 不允许修改。 该方法行不通
 
-## 配置Lambda@Edge后，如何查看函数日志
+2. 配置Lambda@Edge后，如何查看函数日志
 
-> 请特别注意，这里一定要注意， 配置Lambda@Edge后， 函数虽然是在us-east-1定义的， 但是函数具体的日志是不一定在us-east-1的， 要看最终访问的地方命中了CloudFront的哪个region
+请特别注意，这里一定要注意， 配置Lambda@Edge后， 函数虽然是在us-east-1定义的， 但是函数具体的日志是不一定在us-east-1的， 要看最终访问的地方命中了CloudFront的哪个region
 
-### 如何判断具体落在哪个region?
+3. 如何判断具体落在哪个region?
 
 可以在 CloudFront-Telemetry-Monitoring-Lambda@Edge-选择具体的函数-看Metric. 看命中到哪个region, 然后定位到该region的CloudWatch对应的函数日志
