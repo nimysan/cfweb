@@ -16,10 +16,10 @@ EC2-NLB-CF(inside)-CF(outside - 在此配置业务域名并使用)
 docker run -d -p 80:80 kennethreitz/httpbin
 ```
 
-
 ### 每一层系统的访问
 
 #### NLB
+
 ```bash
 #NLB直接访问 - OK
 curl -X GET -H 'customer-header:hey' http://testnlb-317e15c5ac054f49.elb.us-east-1.amazonaws.com/headers 
@@ -33,7 +33,9 @@ curl -X GET -H 'customer-header:hey' http://testnlb-317e15c5ac054f49.elb.us-east
 }
 
 ```
+
 #### Inside CF
+
 ```bash
 #CF（inside) 直接访问 OK
 curl -X GET -H 'customer-header:hey'  https://d1kbsjp3qzgmcr.cloudfront.net/headers 
@@ -48,25 +50,32 @@ curl -X GET -H 'customer-header:hey'  https://d1kbsjp3qzgmcr.cloudfront.net/head
   }
 }
 ```
+
 ![insidecf](images/insidecf.png)
 
 #### Outside CF
 
 > 为了实现WAF规则对比， 外层CF需要能够将请求所有的header, cookie, querystring全部透出传去后端CF。
 
->> 而一旦透传Header **Host**到内层CF, CF (outside)无法访问成功。
+> > 而一旦透传Header **Host**到内层CF, CF (outside)无法访问成功。
+
 ```html
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
-<HTML><HEAD><META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
-<TITLE>ERROR: The request could not be satisfied</TITLE>
-</HEAD><BODY>
+<HTML>
+<HEAD>
+    <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+    <TITLE>ERROR: The request could not be satisfied</TITLE>
+</HEAD>
+<BODY>
 <H1>403 ERROR</H1>
 <H2>The request could not be satisfied.</H2>
 <HR noshade size="1px">
 Bad request.
-We can't connect to the server for this app or website at this time. There might be too much traffic or a configuration error. Try again later, or contact the app or website owner.
+We can't connect to the server for this app or website at this time. There might be too much traffic or a configuration
+error. Try again later, or contact the app or website owner.
 <BR clear="all">
-If you provide content to customers through CloudFront, you can find steps to troubleshoot and help prevent this error by reviewing the CloudFront documentation.
+If you provide content to customers through CloudFront, you can find steps to troubleshoot and help prevent this error
+by reviewing the CloudFront documentation.
 <BR clear="all">
 <HR noshade size="1px">
 <PRE>
@@ -75,15 +84,17 @@ Request ID: LHVTSrrUTmZlNJr9yyB8ymoxrPPbsfyFGsTR6ma40cVZgD87Pivdgg==
 </PRE>
 <ADDRESS>
 </ADDRESS>
-</BODY></HTML
+</BODY>
+</HTML
 ```
+
 > CloudFront distribution 的限制，不允许以一个不对应的Host请求CF
 
 ## 解决方案
 
 通过Lambda@Edge, 在Origin Request阶段修改Host的值为CF(inside)的域名，实现访问；
 
-> 注意 一个字都不要错！ 特别是HOST的值， 搞个两个小时, 只因为Host的值给错了!!!
+> 代码千万不要有任何错误， 嵌入到CF后不是很好调试， 最末端的callback(null, request)是必须的
 
 ```js
 
@@ -104,8 +115,8 @@ exports.handler = (event, context, callback) => {
 
 ![outsidecf](images/outsidecf.png)
 
-
 配置成功后，
+
 ```bash
 [ec2-user@ip-172-31-23-252 ~]$ curl -X GET -H 'customer-header:hey' https://outside.cuteworld.top/headers
 {
@@ -120,8 +131,19 @@ exports.handler = (event, context, callback) => {
 }
 ```
 
+## 参考文档
+
+[Lambda@Edge IAM权限](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-edge-permissions.html)
+
+[Lambda@Edge Quota 特别是RPS 10000, 酌情申请提额](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-limits.html#limits-lambda-at-edge)
+
+[Lambda@Edge例子代码](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-examples.html#lambda-examples-query-string-examples)
+
+[Lambda@Edge price](https://aws.amazon.com/lambda/pricing/)
+![price](images/lambda@edge_price.png)
+
 ## 几个需要注意的问题
- 
+
 1. 尝试通过 CloudFront Function修改Host
 
 > The CloudFront function tried to add, delete, or change a read-only header
